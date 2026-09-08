@@ -54,12 +54,36 @@
         this.objetSaisi = null;
         this.positionMain = new THREE.Vector3();
         this.positionObjet = new THREE.Vector3();
+
+        // ici le rajout : on garde en mémoire la position précédente de la main pour pouvoir
+        // calculer sa vitesse à chaque frame (nécessaire pour "lancer" un objet à la main)
+        this.positionPrecedente = new THREE.Vector3();
+        this.vitesseMain = new THREE.Vector3();
+        this.positionPrecedenteInitialisee = false;
+
         var contexte = this;
         this.el.addEventListener('gripdown', function () { contexte.attraper(); });
         this.el.addEventListener('gripup', function () { contexte.relacher(); });
       },
+
+      // ici le rajout : calcule la vitesse de la main à chaque frame (delta position / delta temps)
+      tick: function (temps, deltaTemps) {
+        if (!deltaTemps) { return; }
+        var secondes = deltaTemps / 1000;
+        var positionActuelle = new THREE.Vector3();
+        this.el.object3D.getWorldPosition(positionActuelle);
+
+        if (this.positionPrecedenteInitialisee) {
+          this.vitesseMain.subVectors(positionActuelle, this.positionPrecedente).divideScalar(secondes);
+        }
+        this.positionPrecedente.copy(positionActuelle);
+        this.positionPrecedenteInitialisee = true;
+      },
+
       attraper: function () {
         if (this.objetSaisi) { return; }
+        // Cible tout ce qui a la classe "saisissable" : ici uniquement les balles tirées
+        // (il n'y a plus de chargeur/rechargement, juste les balles déjà tirées au sol).
         var objetsSaisissables = document.querySelectorAll('.saisissable');
         this.el.object3D.getWorldPosition(this.positionMain);
         var distanceLaPlusProche = this.data.distanceSaisie;
@@ -79,18 +103,37 @@
           this.objetSaisi = objetLePlusProche;
         }
       },
+
       relacher: function () {
         if (!this.objetSaisi) { return; }
-        this.el.sceneEl.object3D.attach(this.objetSaisi.object3D);
-        this.objetSaisi.setAttribute('dynamic-body', 'mass: 1');
+        var objetRelache = this.objetSaisi;
+
+        // ici le rajout : on capture la vitesse de la main au moment du relâchement,
+        // c'est cette vitesse qui sera transmise à l'objet pour simuler un lancer à la main
+        var vitesseLancer = this.vitesseMain.clone();
+
+        this.el.sceneEl.object3D.attach(objetRelache.object3D);
+        objetRelache.setAttribute('dynamic-body', 'mass: 1');
+
+        // ici le rajout : dès que le corps physique est prêt, on lui applique la vitesse
+        // de la main -> l'objet part dans la direction et à la vitesse du geste de lancer
+        function appliquerVitesseDeLancer () {
+          objetRelache.body.velocity.set(vitesseLancer.x, vitesseLancer.y, vitesseLancer.z);
+          objetRelache.removeEventListener('body-loaded', appliquerVitesseDeLancer);
+        }
+        objetRelache.addEventListener('body-loaded', appliquerVitesseDeLancer);
+
         this.objetSaisi = null;
       }
     });
 
     AFRAME.registerComponent('tir-arme', {
       schema: {
-        vitesseProjectile: {default: 16},
-        rayonProjectile: {default: 0.05}
+        // ici le rajout : puissance de tir fixe (plus de variation selon la pression du trigger)
+        // valeur réduite pour que la balle retombe bien à l'intérieur de la map (30x30)
+        vitesseProjectile: {default: 9},
+        rayonProjectile: {default: 0.05},
+        masseProjectile: {default: 0.2}
       },
       init: function () {
         this.positionBouche = new THREE.Vector3();
@@ -109,6 +152,9 @@
 
         var projectile = document.createElement('a-sphere');
         projectile.classList.add('projectile');
+        // la balle tirée reste "saisissable" une fois au sol -> récupérable et relançable à la main
+        projectile.classList.add('saisissable');
+        projectile.classList.add('balle');
         projectile.setAttribute('radius', this.data.rayonProjectile);
         projectile.setAttribute('color', '#FFD43B');
         projectile.setAttribute('position', {
@@ -116,11 +162,20 @@
           y: this.positionBouche.y + direction.y * 0.1,
           z: this.positionBouche.z + direction.z * 0.1
         });
-        projectile.setAttribute('dynamic-body', 'shape: sphere; mass: 0.2');
+        projectile.setAttribute('dynamic-body', 'shape: sphere; mass: ' + this.data.masseProjectile);
 
-        var vitesse = this.data.vitesseProjectile;
+        // ici le rajout : puissance fixe, plus de calcul basé sur la pression du trigger
+        var puissance = this.data.vitesseProjectile;
+
         projectile.addEventListener('body-loaded', function () {
-          projectile.body.velocity.set(direction.x * vitesse, direction.y * vitesse, direction.z * vitesse);
+          // La gravité (physics="gravity: -9.8" sur <a-scene>, déjà présente) continue d'agir
+          // naturellement sur la balle une fois l'impulsion appliquée.
+          var impulsion = new CANNON.Vec3(
+            direction.x * puissance * projectile.components['dynamic-body'].body.mass,
+            direction.y * puissance * projectile.components['dynamic-body'].body.mass,
+            direction.z * puissance * projectile.components['dynamic-body'].body.mass
+          );
+          projectile.body.applyImpulse(impulsion, projectile.body.position);
         });
 
         this.el.sceneEl.appendChild(projectile);
