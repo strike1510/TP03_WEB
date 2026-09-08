@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>TP03 - Exercice 4 - Cibles et particules</title>
+  <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@c-frame/aframe-physics-system@4.2.2/dist/aframe-physics-system.min.js"></script>
+  <script>
+    AFRAME.registerComponent('deplacement-joystick', {
+      schema: {
+        vitesseDeplacement: {default: 3},
+        vitesseRotation: {default: 70}
+      },
+      init: function () {
+        this.axeDeplacement = {x: 0, y: 0};
+        this.axeRotation = 0;
+        this.camera = document.querySelector('#camera');
+        var mainGauche = document.querySelector('#mainGauche');
+        var mainDroite = document.querySelector('#mainDroite');
+        var contexte = this;
+        mainGauche.addEventListener('thumbstickmoved', function (evenement) {
+          contexte.axeDeplacement.x = evenement.detail.x;
+          contexte.axeDeplacement.y = evenement.detail.y;
+        });
+        mainDroite.addEventListener('thumbstickmoved', function (evenement) {
+          contexte.axeRotation = evenement.detail.x;
+        });
+      },
+      tick: function (temps, deltaTemps) {
+        var secondes = deltaTemps / 1000;
+        var rig = this.el.object3D;
+        if (Math.abs(this.axeRotation) > 0.15) {
+          rig.rotation.y -= THREE.MathUtils.degToRad(this.data.vitesseRotation) * this.axeRotation * secondes;
+        }
+        if (Math.abs(this.axeDeplacement.x) > 0.15 || Math.abs(this.axeDeplacement.y) > 0.15) {
+          var orientation = this.camera.object3D.rotation.y + rig.rotation.y;
+          var avantX = -Math.sin(orientation);
+          var avantZ = -Math.cos(orientation);
+          var droiteX = Math.cos(orientation);
+          var droiteZ = -Math.sin(orientation);
+          var deplacementX = (avantX * -this.axeDeplacement.y + droiteX * this.axeDeplacement.x) * this.data.vitesseDeplacement * secondes;
+          var deplacementZ = (avantZ * -this.axeDeplacement.y + droiteZ * this.axeDeplacement.x) * this.data.vitesseDeplacement * secondes;
+          rig.position.x += deplacementX;
+          rig.position.z += deplacementZ;
+        }
+      }
+    });
+
+    AFRAME.registerComponent('saisie-objet', {
+      schema: {
+        distanceSaisie: {default: 0.25}
+      },
+      init: function () {
+        this.objetSaisi = null;
+        this.positionMain = new THREE.Vector3();
+        this.positionObjet = new THREE.Vector3();
+        var contexte = this;
+        this.el.addEventListener('gripdown', function () { contexte.attraper(); });
+        this.el.addEventListener('gripup', function () { contexte.relacher(); });
+      },
+      attraper: function () {
+        if (this.objetSaisi) { return; }
+        var objetsSaisissables = document.querySelectorAll('.saisissable');
+        this.el.object3D.getWorldPosition(this.positionMain);
+        var distanceLaPlusProche = this.data.distanceSaisie;
+        var objetLePlusProche = null;
+        for (var index = 0; index < objetsSaisissables.length; index++) {
+          var objet = objetsSaisissables[index];
+          objet.object3D.getWorldPosition(this.positionObjet);
+          var distance = this.positionMain.distanceTo(this.positionObjet);
+          if (distance < distanceLaPlusProche) {
+            distanceLaPlusProche = distance;
+            objetLePlusProche = objet;
+          }
+        }
+        if (objetLePlusProche) {
+          objetLePlusProche.removeAttribute('dynamic-body');
+          this.el.object3D.attach(objetLePlusProche.object3D);
+          this.objetSaisi = objetLePlusProche;
+        }
+      },
+      relacher: function () {
+        if (!this.objetSaisi) { return; }
+        this.el.sceneEl.object3D.attach(this.objetSaisi.object3D);
+        this.objetSaisi.setAttribute('dynamic-body', 'mass: 1');
+        this.objetSaisi = null;
+      }
+    });
+
+    AFRAME.registerComponent('tir-arme', {
+      schema: {
+        vitesseProjectile: {default: 16},
+        rayonProjectile: {default: 0.05}
+      },
+      init: function () {
+        this.positionBouche = new THREE.Vector3();
+        this.quaternionBouche = new THREE.Quaternion();
+        var contexte = this;
+        this.el.addEventListener('triggerdown', function () { contexte.tirer(); });
+      },
+      tirer: function () {
+        var saisie = this.el.components['saisie-objet'];
+        if (!saisie || !saisie.objetSaisi || !saisie.objetSaisi.classList.contains('arme')) { return; }
+        var arme = saisie.objetSaisi;
+        var bouche = arme.querySelector('.bouche');
+        bouche.object3D.getWorldPosition(this.positionBouche);
+        bouche.object3D.getWorldQuaternion(this.quaternionBouche);
+        var direction = new THREE.Vector3(0, 0, -1).applyQuaternion(this.quaternionBouche).normalize();
+        var scene = this.el.sceneEl;
+
+        var projectile = document.createElement('a-sphere');
+        projectile.classList.add('projectile');
+        projectile.setAttribute('radius', this.data.rayonProjectile);
+        projectile.setAttribute('color', '#FFD43B');
+        projectile.setAttribute('position', {
+          x: this.positionBouche.x + direction.x * 0.1,
+          y: this.positionBouche.y + direction.y * 0.1,
+          z: this.positionBouche.z + direction.z * 0.1
+        });
+        projectile.setAttribute('dynamic-body', 'shape: sphere; mass: 0.2');
+
+        var vitesse = this.data.vitesseProjectile;
+        projectile.addEventListener('body-loaded', function () {
+          projectile.body.velocity.set(direction.x * vitesse, direction.y * vitesse, direction.z * vitesse);
+        });
+
+        projectile.addEventListener('collide', function (evenement) {
+          var objetTouche = evenement.detail.body.el;
+          if (objetTouche && objetTouche.classList.contains('cible')) {
+            var positionImpact = objetTouche.getAttribute('position');
+            jouerSonImpact(scene, positionImpact);
+            creerParticules(scene, positionImpact);
+            if (objetTouche.parentNode) { objetTouche.parentNode.removeChild(objetTouche); }
+            if (projectile.parentNode) { projectile.parentNode.removeChild(projectile); }
+          }
+        });
+
+        scene.appendChild(projectile);
+      }
+    });
+
+    AFRAME.registerComponent('generateur-cibles', {
+      schema: {
+        delai: {default: 3000},
+        hauteur: {default: 1.5},
+        etendue: {default: 6}
+      },
+      init: function () {
+        var contexte = this;
+        this.minuterie = setInterval(function () { contexte.genererCible(); }, this.data.delai);
+      },
+      remove: function () {
+        clearInterval(this.minuterie);
+      },
+      genererCible: function () {
+        var positionX = (Math.random() - 0.5) * this.data.etendue;
+        var positionZ = -2 - Math.random() * this.data.etendue;
+        var estCube = Math.random() < 0.5;
+        var cible = document.createElement(estCube ? 'a-box' : 'a-cone');
+        cible.classList.add('cible');
+        cible.setAttribute('position', {x: positionX, y: this.data.hauteur, z: positionZ});
+        cible.setAttribute('color', estCube ? '#FA5252' : '#BE4BDB');
+        cible.setAttribute('shadow', 'cast: true; receive: true');
+        if (estCube) {
+          cible.setAttribute('width', 0.4);
+          cible.setAttribute('height', 0.4);
+          cible.setAttribute('depth', 0.4);
+          cible.setAttribute('static-body', 'shape: box');
+        } else {
+          cible.setAttribute('radius-bottom', 0.25);
+          cible.setAttribute('radius-top', 0);
+          cible.setAttribute('height', 0.5);
+          cible.setAttribute('static-body', 'shape: box');
+        }
+        this.el.appendChild(cible);
+      }
+    });
+
+    function jouerSonImpact(scene, position) {
+      var sourceSon = document.createElement('a-entity');
+      sourceSon.setAttribute('position', position);
+      sourceSon.setAttribute('sound', 'src: #sonImpact; positional: true; distanceModel: linear; refDistance: 1; maxDistance: 25; rolloffFactor: 1; volume: 1');
+      sourceSon.addEventListener('loaded', function () {
+        sourceSon.components.sound.playSound();
+      });
+      scene.appendChild(sourceSon);
+      setTimeout(function () {
+        if (sourceSon.parentNode) { sourceSon.parentNode.removeChild(sourceSon); }
+      }, 1000);
+    }
+
+    function creerParticules(scene, position) {
+      var nombreParticules = 12;
+      for (var index = 0; index < nombreParticules; index++) {
+        var particule = document.createElement('a-sphere');
+        particule.setAttribute('radius', 0.04);
+        particule.setAttribute('color', '#FFA94D');
+        particule.setAttribute('material', 'transparent: true; opacity: 1');
+        particule.setAttribute('position', position);
+        var destination = {
+          x: position.x + (Math.random() - 0.5),
+          y: position.y + (Math.random() - 0.5),
+          z: position.z + (Math.random() - 0.5)
+        };
+        particule.setAttribute('animation__deplacement', 'property: position; to: ' + destination.x + ' ' + destination.y + ' ' + destination.z + '; dur: 600; easing: easeOutQuad');
+        particule.setAttribute('animation__disparition', 'property: material.opacity; from: 1; to: 0; dur: 600; easing: easeOutQuad');
+        scene.appendChild(particule);
+        (function (particuleADetruire) {
+          setTimeout(function () {
+            if (particuleADetruire.parentNode) { particuleADetruire.parentNode.removeChild(particuleADetruire); }
+          }, 650);
+        })(particule);
+      }
+    }
+  </script>
+</head>
+<body>
+  <a-scene shadow="type: pcfsoft" physics="driver: local; gravity: -9.8">
+    <a-assets>
+      <audio id="sonImpact" src="data:audio/wav;base64,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" preload="auto"></audio>
+    </a-assets>
+
+    <a-entity id="lumiereDirectionnelle"
+      light="type: directional; intensity: 0.8; castShadow: true; shadowMapWidth: 2048; shadowMapHeight: 2048; shadowCameraLeft: -12; shadowCameraRight: 12; shadowCameraTop: 12; shadowCameraBottom: -12"
+      position="5 8 3"></a-entity>
+
+    <a-entity id="lumiereAmbiante" light="type: ambient; intensity: 0.5"></a-entity>
+
+    <a-entity id="arme" class="saisissable arme" position="0.3 1.1 -1" shadow="cast: true" dynamic-body="mass: 1">
+      <a-box color="#343A40" width="0.07" height="0.12" depth="0.32"></a-box>
+      <a-box color="#212529" position="0 -0.13 0.09" width="0.06" height="0.16" depth="0.1"></a-box>
+      <a-entity class="bouche" position="0 0 -0.2"></a-entity>
+    </a-entity>
+
+    <a-box class="cible" position="-2 1.5 -4" width="0.4" height="0.4" depth="0.4" color="#FA5252" shadow="cast: true; receive: true" static-body="shape: box"></a-box>
+    <a-cone class="cible" position="0 1.5 -5" radius-bottom="0.25" radius-top="0" height="0.5" color="#BE4BDB" shadow="cast: true; receive: true" static-body="shape: box"></a-cone>
+    <a-box class="cible" position="2 1.5 -4" width="0.4" height="0.4" depth="0.4" color="#FA5252" shadow="cast: true; receive: true" static-body="shape: box"></a-box>
+
+    <a-entity id="conteneurCibles" generateur-cibles></a-entity>
+
+    <a-plane id="sol" rotation="-90 0 0" width="30" height="30" color="#7BC47F" shadow="receive: true" static-body></a-plane>
+
+    <a-sky color="#AECBEB"></a-sky>
+
+    <a-entity id="rig" deplacement-joystick position="0 0 0">
+      <a-entity id="camera" camera position="0 1.6 0" look-controls wasd-controls></a-entity>
+      <a-entity id="mainGauche" meta-touch-controls="hand: left" saisie-objet tir-arme></a-entity>
+      <a-entity id="mainDroite" meta-touch-controls="hand: right" saisie-objet tir-arme></a-entity>
+    </a-entity>
+  </a-scene>
+</body>
+</html>

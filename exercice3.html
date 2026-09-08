@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>TP03 - Exercice 3 - Arme en VR</title>
+  <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@c-frame/aframe-physics-system@4.2.2/dist/aframe-physics-system.min.js"></script>
+  <script>
+    AFRAME.registerComponent('deplacement-joystick', {
+      schema: {
+        vitesseDeplacement: {default: 3},
+        vitesseRotation: {default: 70}
+      },
+      init: function () {
+        this.axeDeplacement = {x: 0, y: 0};
+        this.axeRotation = 0;
+        this.camera = document.querySelector('#camera');
+        var mainGauche = document.querySelector('#mainGauche');
+        var mainDroite = document.querySelector('#mainDroite');
+        var contexte = this;
+        mainGauche.addEventListener('thumbstickmoved', function (evenement) {
+          contexte.axeDeplacement.x = evenement.detail.x;
+          contexte.axeDeplacement.y = evenement.detail.y;
+        });
+        mainDroite.addEventListener('thumbstickmoved', function (evenement) {
+          contexte.axeRotation = evenement.detail.x;
+        });
+      },
+      tick: function (temps, deltaTemps) {
+        var secondes = deltaTemps / 1000;
+        var rig = this.el.object3D;
+        if (Math.abs(this.axeRotation) > 0.15) {
+          rig.rotation.y -= THREE.MathUtils.degToRad(this.data.vitesseRotation) * this.axeRotation * secondes;
+        }
+        if (Math.abs(this.axeDeplacement.x) > 0.15 || Math.abs(this.axeDeplacement.y) > 0.15) {
+          var orientation = this.camera.object3D.rotation.y + rig.rotation.y;
+          var avantX = -Math.sin(orientation);
+          var avantZ = -Math.cos(orientation);
+          var droiteX = Math.cos(orientation);
+          var droiteZ = -Math.sin(orientation);
+          var deplacementX = (avantX * -this.axeDeplacement.y + droiteX * this.axeDeplacement.x) * this.data.vitesseDeplacement * secondes;
+          var deplacementZ = (avantZ * -this.axeDeplacement.y + droiteZ * this.axeDeplacement.x) * this.data.vitesseDeplacement * secondes;
+          rig.position.x += deplacementX;
+          rig.position.z += deplacementZ;
+        }
+      }
+    });
+
+    AFRAME.registerComponent('saisie-objet', {
+      schema: {
+        distanceSaisie: {default: 0.25}
+      },
+      init: function () {
+        this.objetSaisi = null;
+        this.positionMain = new THREE.Vector3();
+        this.positionObjet = new THREE.Vector3();
+        var contexte = this;
+        this.el.addEventListener('gripdown', function () { contexte.attraper(); });
+        this.el.addEventListener('gripup', function () { contexte.relacher(); });
+      },
+      attraper: function () {
+        if (this.objetSaisi) { return; }
+        var objetsSaisissables = document.querySelectorAll('.saisissable');
+        this.el.object3D.getWorldPosition(this.positionMain);
+        var distanceLaPlusProche = this.data.distanceSaisie;
+        var objetLePlusProche = null;
+        for (var index = 0; index < objetsSaisissables.length; index++) {
+          var objet = objetsSaisissables[index];
+          objet.object3D.getWorldPosition(this.positionObjet);
+          var distance = this.positionMain.distanceTo(this.positionObjet);
+          if (distance < distanceLaPlusProche) {
+            distanceLaPlusProche = distance;
+            objetLePlusProche = objet;
+          }
+        }
+        if (objetLePlusProche) {
+          objetLePlusProche.removeAttribute('dynamic-body');
+          this.el.object3D.attach(objetLePlusProche.object3D);
+          this.objetSaisi = objetLePlusProche;
+        }
+      },
+      relacher: function () {
+        if (!this.objetSaisi) { return; }
+        this.el.sceneEl.object3D.attach(this.objetSaisi.object3D);
+        this.objetSaisi.setAttribute('dynamic-body', 'mass: 1');
+        this.objetSaisi = null;
+      }
+    });
+
+    AFRAME.registerComponent('tir-arme', {
+      schema: {
+        vitesseProjectile: {default: 16},
+        rayonProjectile: {default: 0.05}
+      },
+      init: function () {
+        this.positionBouche = new THREE.Vector3();
+        this.quaternionBouche = new THREE.Quaternion();
+        var contexte = this;
+        this.el.addEventListener('triggerdown', function () { contexte.tirer(); });
+      },
+      tirer: function () {
+        var saisie = this.el.components['saisie-objet'];
+        if (!saisie || !saisie.objetSaisi || !saisie.objetSaisi.classList.contains('arme')) { return; }
+        var arme = saisie.objetSaisi;
+        var bouche = arme.querySelector('.bouche');
+        bouche.object3D.getWorldPosition(this.positionBouche);
+        bouche.object3D.getWorldQuaternion(this.quaternionBouche);
+        var direction = new THREE.Vector3(0, 0, -1).applyQuaternion(this.quaternionBouche).normalize();
+
+        var projectile = document.createElement('a-sphere');
+        projectile.classList.add('projectile');
+        projectile.setAttribute('radius', this.data.rayonProjectile);
+        projectile.setAttribute('color', '#FFD43B');
+        projectile.setAttribute('position', {
+          x: this.positionBouche.x + direction.x * 0.1,
+          y: this.positionBouche.y + direction.y * 0.1,
+          z: this.positionBouche.z + direction.z * 0.1
+        });
+        projectile.setAttribute('dynamic-body', 'shape: sphere; mass: 0.2');
+
+        var vitesse = this.data.vitesseProjectile;
+        projectile.addEventListener('body-loaded', function () {
+          projectile.body.velocity.set(direction.x * vitesse, direction.y * vitesse, direction.z * vitesse);
+        });
+
+        this.el.sceneEl.appendChild(projectile);
+      }
+    });
+  </script>
+</head>
+<body>
+  <a-scene shadow="type: pcfsoft" physics="driver: local; gravity: -9.8">
+    <a-entity id="lumiereDirectionnelle"
+      light="type: directional; intensity: 0.8; castShadow: true; shadowMapWidth: 2048; shadowMapHeight: 2048; shadowCameraLeft: -12; shadowCameraRight: 12; shadowCameraTop: 12; shadowCameraBottom: -12"
+      position="5 8 3"></a-entity>
+
+    <a-entity id="lumiereAmbiante" light="type: ambient; intensity: 0.5"></a-entity>
+
+    <a-entity id="arme" class="saisissable arme" position="0.3 1.1 -1" shadow="cast: true" dynamic-body="mass: 1">
+      <a-box color="#343A40" width="0.07" height="0.12" depth="0.32"></a-box>
+      <a-box color="#212529" position="0 -0.13 0.09" width="0.06" height="0.16" depth="0.1"></a-box>
+      <a-entity class="bouche" position="0 0 -0.2"></a-entity>
+    </a-entity>
+
+    <a-plane id="sol" rotation="-90 0 0" width="30" height="30" color="#7BC47F" shadow="receive: true" static-body></a-plane>
+
+    <a-sky color="#AECBEB"></a-sky>
+
+    <a-entity id="rig" deplacement-joystick position="0 0 0">
+      <a-entity id="camera" camera position="0 1.6 0" look-controls wasd-controls></a-entity>
+      <a-entity id="mainGauche" meta-touch-controls="hand: left" saisie-objet tir-arme></a-entity>
+      <a-entity id="mainDroite" meta-touch-controls="hand: right" saisie-objet tir-arme></a-entity>
+    </a-entity>
+  </a-scene>
+</body>
+</html>

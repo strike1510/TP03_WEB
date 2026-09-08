@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>TP03 - Exercice 2 - Grabbing</title>
+  <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@c-frame/aframe-physics-system@4.2.2/dist/aframe-physics-system.min.js"></script>
+  <script>
+    AFRAME.registerComponent('deplacement-joystick', {
+      schema: {
+        vitesseDeplacement: {default: 3},
+        vitesseRotation: {default: 70}
+      },
+      init: function () {
+        this.axeDeplacement = {x: 0, y: 0};
+        this.axeRotation = 0;
+        this.camera = document.querySelector('#camera');
+        var mainGauche = document.querySelector('#mainGauche');
+        var mainDroite = document.querySelector('#mainDroite');
+        var contexte = this;
+        mainGauche.addEventListener('thumbstickmoved', function (evenement) {
+          contexte.axeDeplacement.x = evenement.detail.x;
+          contexte.axeDeplacement.y = evenement.detail.y;
+        });
+        mainDroite.addEventListener('thumbstickmoved', function (evenement) {
+          contexte.axeRotation = evenement.detail.x;
+        });
+      },
+      tick: function (temps, deltaTemps) {
+        var secondes = deltaTemps / 1000;
+        var rig = this.el.object3D;
+        if (Math.abs(this.axeRotation) > 0.15) {
+          rig.rotation.y -= THREE.MathUtils.degToRad(this.data.vitesseRotation) * this.axeRotation * secondes;
+        }
+        if (Math.abs(this.axeDeplacement.x) > 0.15 || Math.abs(this.axeDeplacement.y) > 0.15) {
+          var orientation = this.camera.object3D.rotation.y + rig.rotation.y;
+          var avantX = -Math.sin(orientation);
+          var avantZ = -Math.cos(orientation);
+          var droiteX = Math.cos(orientation);
+          var droiteZ = -Math.sin(orientation);
+          var deplacementX = (avantX * -this.axeDeplacement.y + droiteX * this.axeDeplacement.x) * this.data.vitesseDeplacement * secondes;
+          var deplacementZ = (avantZ * -this.axeDeplacement.y + droiteZ * this.axeDeplacement.x) * this.data.vitesseDeplacement * secondes;
+          rig.position.x += deplacementX;
+          rig.position.z += deplacementZ;
+        }
+      }
+    });
+
+    AFRAME.registerComponent('saisie-objet', {
+      schema: {
+        distanceSaisie: {default: 0.25}
+      },
+      init: function () {
+        this.objetSaisi = null;
+        this.positionMain = new THREE.Vector3();
+        this.positionObjet = new THREE.Vector3();
+        var contexte = this;
+        this.el.addEventListener('gripdown', function () { contexte.attraper(); });
+        this.el.addEventListener('gripup', function () { contexte.relacher(); });
+      },
+      attraper: function () {
+        if (this.objetSaisi) { return; }
+        var objetsSaisissables = document.querySelectorAll('.saisissable');
+        this.el.object3D.getWorldPosition(this.positionMain);
+        var distanceLaPlusProche = this.data.distanceSaisie;
+        var objetLePlusProche = null;
+        for (var index = 0; index < objetsSaisissables.length; index++) {
+          var objet = objetsSaisissables[index];
+          objet.object3D.getWorldPosition(this.positionObjet);
+          var distance = this.positionMain.distanceTo(this.positionObjet);
+          if (distance < distanceLaPlusProche) {
+            distanceLaPlusProche = distance;
+            objetLePlusProche = objet;
+          }
+        }
+        if (objetLePlusProche) {
+          objetLePlusProche.removeAttribute('dynamic-body');
+          this.el.object3D.attach(objetLePlusProche.object3D);
+          this.objetSaisi = objetLePlusProche;
+        }
+      },
+      relacher: function () {
+        if (!this.objetSaisi) { return; }
+        this.el.sceneEl.object3D.attach(this.objetSaisi.object3D);
+        this.objetSaisi.setAttribute('dynamic-body', 'mass: 1');
+        this.objetSaisi = null;
+      }
+    });
+  </script>
+</head>
+<body>
+  <a-scene shadow="type: pcfsoft" physics="driver: local; gravity: -9.8">
+    <a-entity id="lumiereDirectionnelle"
+      light="type: directional; intensity: 0.8; castShadow: true; shadowMapWidth: 2048; shadowMapHeight: 2048; shadowCameraLeft: -12; shadowCameraRight: 12; shadowCameraTop: 12; shadowCameraBottom: -12"
+      position="5 8 3"></a-entity>
+
+    <a-entity id="lumiereAmbiante" light="type: ambient; intensity: 0.5"></a-entity>
+
+    <a-box class="saisissable" position="-1.5 1.2 -2" color="#4C6EF5" depth="0.3" height="0.3" width="0.3" shadow="cast: true; receive: true" dynamic-body="shape: box; mass: 1"></a-box>
+    <a-sphere class="saisissable" position="0 1.2 -2" radius="0.18" color="#F76707" shadow="cast: true; receive: true" dynamic-body="shape: sphere; mass: 1"></a-sphere>
+    <a-box class="saisissable" position="1.5 1.2 -2" color="#E64980" depth="0.3" height="0.3" width="0.3" shadow="cast: true; receive: true" dynamic-body="shape: box; mass: 1"></a-box>
+
+    <a-plane id="sol" rotation="-90 0 0" width="30" height="30" color="#7BC47F" shadow="receive: true" static-body></a-plane>
+
+    <a-sky color="#AECBEB"></a-sky>
+
+    <a-entity id="rig" deplacement-joystick position="0 0 0">
+      <a-entity id="camera" camera position="0 1.6 0" look-controls wasd-controls></a-entity>
+      <a-entity id="mainGauche" meta-touch-controls="hand: left" saisie-objet></a-entity>
+      <a-entity id="mainDroite" meta-touch-controls="hand: right" saisie-objet></a-entity>
+    </a-entity>
+  </a-scene>
+</body>
+</html>
