@@ -5,207 +5,462 @@
   <title>TP03 - Exercice 3 - Arme en VR</title>
   <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@c-frame/aframe-physics-system@4.2.2/dist/aframe-physics-system.min.js"></script>
+
   <script>
     AFRAME.registerComponent('deplacement-joystick', {
       schema: {
         vitesseDeplacement: {default: 3},
         vitesseRotation: {default: 70}
       },
+
       init: function () {
         this.axeDeplacement = {x: 0, y: 0};
         this.axeRotation = 0;
         this.camera = document.querySelector('#camera');
+
         var mainGauche = document.querySelector('#mainGauche');
         var mainDroite = document.querySelector('#mainDroite');
         var contexte = this;
+
         mainGauche.addEventListener('thumbstickmoved', function (evenement) {
           contexte.axeDeplacement.x = evenement.detail.x;
           contexte.axeDeplacement.y = evenement.detail.y;
         });
+
         mainDroite.addEventListener('thumbstickmoved', function (evenement) {
           contexte.axeRotation = evenement.detail.x;
         });
       },
+
       tick: function (temps, deltaTemps) {
         var secondes = deltaTemps / 1000;
         var rig = this.el.object3D;
+
         if (Math.abs(this.axeRotation) > 0.15) {
           rig.rotation.y -= THREE.MathUtils.degToRad(this.data.vitesseRotation) * this.axeRotation * secondes;
         }
+
         if (Math.abs(this.axeDeplacement.x) > 0.15 || Math.abs(this.axeDeplacement.y) > 0.15) {
           var orientation = this.camera.object3D.rotation.y + rig.rotation.y;
+
           var avantX = -Math.sin(orientation);
           var avantZ = -Math.cos(orientation);
+
           var droiteX = Math.cos(orientation);
           var droiteZ = -Math.sin(orientation);
-          var deplacementX = (avantX * -this.axeDeplacement.y + droiteX * this.axeDeplacement.x) * this.data.vitesseDeplacement * secondes;
-          var deplacementZ = (avantZ * -this.axeDeplacement.y + droiteZ * this.axeDeplacement.x) * this.data.vitesseDeplacement * secondes;
+
+          var deplacementX =
+            (avantX * -this.axeDeplacement.y + droiteX * this.axeDeplacement.x)
+            * this.data.vitesseDeplacement * secondes;
+
+          var deplacementZ =
+            (avantZ * -this.axeDeplacement.y + droiteZ * this.axeDeplacement.x)
+            * this.data.vitesseDeplacement * secondes;
+
           rig.position.x += deplacementX;
           rig.position.z += deplacementZ;
         }
       }
     });
 
+
     AFRAME.registerComponent('saisie-objet', {
       schema: {
         distanceSaisie: {default: 0.25}
       },
+
       init: function () {
         this.objetSaisi = null;
         this.positionMain = new THREE.Vector3();
         this.positionObjet = new THREE.Vector3();
 
-        // ici le rajout : on garde en mémoire la position précédente de la main pour pouvoir
-        // calculer sa vitesse à chaque frame (nécessaire pour "lancer" un objet à la main)
         this.positionPrecedente = new THREE.Vector3();
         this.vitesseMain = new THREE.Vector3();
         this.positionPrecedenteInitialisee = false;
 
         var contexte = this;
-        this.el.addEventListener('gripdown', function () { contexte.attraper(); });
-        this.el.addEventListener('gripup', function () { contexte.relacher(); });
+
+        this.el.addEventListener('gripdown', function () {
+          contexte.attraper();
+        });
+
+        this.el.addEventListener('gripup', function () {
+          contexte.relacher();
+        });
       },
 
-      // ici le rajout : calcule la vitesse de la main à chaque frame (delta position / delta temps)
       tick: function (temps, deltaTemps) {
-        if (!deltaTemps) { return; }
+        if (!deltaTemps) {
+          return;
+        }
+
         var secondes = deltaTemps / 1000;
+
         var positionActuelle = new THREE.Vector3();
         this.el.object3D.getWorldPosition(positionActuelle);
 
         if (this.positionPrecedenteInitialisee) {
-          this.vitesseMain.subVectors(positionActuelle, this.positionPrecedente).divideScalar(secondes);
+          this.vitesseMain
+            .subVectors(positionActuelle, this.positionPrecedente)
+            .divideScalar(secondes);
         }
+
         this.positionPrecedente.copy(positionActuelle);
         this.positionPrecedenteInitialisee = true;
       },
 
       attraper: function () {
-        if (this.objetSaisi) { return; }
-        // Cible tout ce qui a la classe "saisissable" : ici uniquement les balles tirées
-        // (il n'y a plus de chargeur/rechargement, juste les balles déjà tirées au sol).
+        if (this.objetSaisi) {
+          return;
+        }
+
         var objetsSaisissables = document.querySelectorAll('.saisissable');
+
         this.el.object3D.getWorldPosition(this.positionMain);
+
         var distanceLaPlusProche = this.data.distanceSaisie;
         var objetLePlusProche = null;
+
         for (var index = 0; index < objetsSaisissables.length; index++) {
           var objet = objetsSaisissables[index];
+
           objet.object3D.getWorldPosition(this.positionObjet);
+
           var distance = this.positionMain.distanceTo(this.positionObjet);
+
           if (distance < distanceLaPlusProche) {
             distanceLaPlusProche = distance;
             objetLePlusProche = objet;
           }
         }
+
         if (objetLePlusProche) {
           objetLePlusProche.removeAttribute('dynamic-body');
+
           this.el.object3D.attach(objetLePlusProche.object3D);
+
           this.objetSaisi = objetLePlusProche;
         }
       },
 
       relacher: function () {
-        if (!this.objetSaisi) { return; }
+        if (!this.objetSaisi) {
+          return;
+        }
+
         var objetRelache = this.objetSaisi;
 
-        // ici le rajout : on capture la vitesse de la main au moment du relâchement,
-        // c'est cette vitesse qui sera transmise à l'objet pour simuler un lancer à la main
         var vitesseLancer = this.vitesseMain.clone();
 
         this.el.sceneEl.object3D.attach(objetRelache.object3D);
+
         objetRelache.setAttribute('dynamic-body', 'mass: 1');
 
-        // ici le rajout : dès que le corps physique est prêt, on lui applique la vitesse
-        // de la main -> l'objet part dans la direction et à la vitesse du geste de lancer
-        function appliquerVitesseDeLancer () {
-          objetRelache.body.velocity.set(vitesseLancer.x, vitesseLancer.y, vitesseLancer.z);
-          objetRelache.removeEventListener('body-loaded', appliquerVitesseDeLancer);
+        function appliquerVitesseDeLancer() {
+          if (!objetRelache.body) {
+            return;
+          }
+
+          objetRelache.body.velocity.set(
+            vitesseLancer.x,
+            vitesseLancer.y,
+            vitesseLancer.z
+          );
+
+          objetRelache.removeEventListener(
+            'body-loaded',
+            appliquerVitesseDeLancer
+          );
         }
-        objetRelache.addEventListener('body-loaded', appliquerVitesseDeLancer);
+
+        objetRelache.addEventListener(
+          'body-loaded',
+          appliquerVitesseDeLancer
+        );
 
         this.objetSaisi = null;
       }
     });
 
+
     AFRAME.registerComponent('tir-arme', {
       schema: {
-        // ici le rajout : puissance de tir fixe (plus de variation selon la pression du trigger)
-        // valeur réduite pour que la balle retombe bien à l'intérieur de la map (30x30)
-        vitesseProjectile: {default: 9},
+        vitesseProjectile: {default: 12},
         rayonProjectile: {default: 0.05},
         masseProjectile: {default: 0.2}
       },
+
       init: function () {
         this.positionBouche = new THREE.Vector3();
         this.quaternionBouche = new THREE.Quaternion();
+
         var contexte = this;
-        this.el.addEventListener('triggerdown', function () { contexte.tirer(); });
+
+        this.el.addEventListener('triggerdown', function () {
+          contexte.tirer();
+        });
       },
+
       tirer: function () {
         var saisie = this.el.components['saisie-objet'];
-        if (!saisie || !saisie.objetSaisi || !saisie.objetSaisi.classList.contains('arme')) { return; }
+
+        if (
+          !saisie ||
+          !saisie.objetSaisi ||
+          !saisie.objetSaisi.classList.contains('arme')
+        ) {
+          return;
+        }
+
         var arme = saisie.objetSaisi;
+
         var bouche = arme.querySelector('.bouche');
+
         bouche.object3D.getWorldPosition(this.positionBouche);
         bouche.object3D.getWorldQuaternion(this.quaternionBouche);
-        var direction = new THREE.Vector3(0, 0, -1).applyQuaternion(this.quaternionBouche).normalize();
+
+        var direction = new THREE.Vector3(0, 0, -1)
+          .applyQuaternion(this.quaternionBouche)
+          .normalize();
 
         var projectile = document.createElement('a-sphere');
+
         projectile.classList.add('projectile');
-        // la balle tirée reste "saisissable" une fois au sol -> récupérable et relançable à la main
         projectile.classList.add('saisissable');
         projectile.classList.add('balle');
-        projectile.setAttribute('radius', this.data.rayonProjectile);
-        projectile.setAttribute('color', '#FFD43B');
+
+        projectile.setAttribute(
+          'radius',
+          this.data.rayonProjectile
+        );
+
+        projectile.setAttribute(
+          'color',
+          '#FFD43B'
+        );
+
         projectile.setAttribute('position', {
-          x: this.positionBouche.x + direction.x * 0.1,
-          y: this.positionBouche.y + direction.y * 0.1,
-          z: this.positionBouche.z + direction.z * 0.1
+          x: this.positionBouche.x + direction.x * 0.2,
+          y: this.positionBouche.y + direction.y * 0.2,
+          z: this.positionBouche.z + direction.z * 0.2
         });
-        projectile.setAttribute('dynamic-body', 'shape: sphere; mass: ' + this.data.masseProjectile);
 
-        // ici le rajout : puissance fixe, plus de calcul basé sur la pression du trigger
-        var puissance = this.data.vitesseProjectile;
-
-        projectile.addEventListener('body-loaded', function () {
-          // La gravité (physics="gravity: -9.8" sur <a-scene>, déjà présente) continue d'agir
-          // naturellement sur la balle une fois l'impulsion appliquée.
-          var impulsion = new CANNON.Vec3(
-            direction.x * puissance * projectile.components['dynamic-body'].body.mass,
-            direction.y * puissance * projectile.components['dynamic-body'].body.mass,
-            direction.z * puissance * projectile.components['dynamic-body'].body.mass
-          );
-          projectile.body.applyImpulse(impulsion, projectile.body.position);
-        });
+        projectile.setAttribute(
+          'dynamic-body',
+          'shape: sphere; mass: ' + this.data.masseProjectile
+        );
 
         this.el.sceneEl.appendChild(projectile);
+
+        var puissance = this.data.vitesseProjectile;
+
+        function appliquerVitesse() {
+          if (!projectile.body) {
+            return;
+          }
+
+          projectile.body.velocity.set(
+            direction.x * puissance,
+            direction.y * puissance,
+            direction.z * puissance
+          );
+        }
+
+        projectile.addEventListener(
+          'body-loaded',
+          appliquerVitesse
+        );
+
+        setTimeout(function () {
+          appliquerVitesse();
+        }, 50);
       }
     });
   </script>
 </head>
+
 <body>
-  <a-scene shadow="type: pcfsoft" physics="driver: local; gravity: -9.8">
-    <a-entity id="lumiereDirectionnelle"
+
+  <a-scene
+    shadow="type: pcfsoft"
+    physics="driver: local; gravity: -9.8"
+  >
+
+    <a-entity
+      id="lumiereDirectionnelle"
       light="type: directional; intensity: 0.8; castShadow: true; shadowMapWidth: 2048; shadowMapHeight: 2048; shadowCameraLeft: -12; shadowCameraRight: 12; shadowCameraTop: 12; shadowCameraBottom: -12"
-      position="5 8 3"></a-entity>
-
-    <a-entity id="lumiereAmbiante" light="type: ambient; intensity: 0.5"></a-entity>
-
-    <a-entity id="arme" class="saisissable arme" position="0.3 1.1 -1" shadow="cast: true" dynamic-body="mass: 1">
-      <a-box color="#343A40" width="0.07" height="0.12" depth="0.32"></a-box>
-      <a-box color="#212529" position="0 -0.13 0.09" width="0.06" height="0.16" depth="0.1"></a-box>
-      <a-entity class="bouche" position="0 0 -0.2"></a-entity>
+      position="5 8 3">
     </a-entity>
 
-    <a-plane id="sol" rotation="-90 0 0" width="30" height="30" color="#7BC47F" shadow="receive: true" static-body></a-plane>
+    <a-entity
+      id="lumiereAmbiante"
+      light="type: ambient; intensity: 0.5">
+    </a-entity>
+
+    <a-entity
+      id="arme"
+      class="saisissable arme"
+      position="0.3 1.1 -1"
+      shadow="cast: true"
+      dynamic-body="mass: 1">
+
+      <a-box
+        color="#343A40"
+        width="0.07"
+        height="0.12"
+        depth="0.32">
+      </a-box>
+
+      <a-box
+        color="#212529"
+        position="0 -0.13 0.09"
+        width="0.06"
+        height="0.16"
+        depth="0.1">
+      </a-box>
+
+      <a-entity
+        class="bouche"
+        position="0 0 -0.2">
+      </a-entity>
+
+    </a-entity>
+
+    <a-plane
+      id="sol"
+      rotation="-90 0 0"
+      width="30"
+      height="30"
+      color="#7BC47F"
+      shadow="receive: true"
+      static-body>
+    </a-plane>
 
     <a-sky color="#AECBEB"></a-sky>
 
-    <a-entity id="rig" deplacement-joystick position="0 0 0">
-      <a-entity id="camera" camera position="0 1.6 0" look-controls wasd-controls></a-entity>
-      <a-entity id="mainGauche" meta-touch-controls="hand: left" saisie-objet tir-arme></a-entity>
-      <a-entity id="mainDroite" meta-touch-controls="hand: right" saisie-objet tir-arme></a-entity>
+    <a-entity
+      id="rig"
+      deplacement-joystick
+      position="0 0 0">
+
+      <a-entity
+        id="camera"
+        camera
+        position="0 1.6 0"
+        look-controls
+        wasd-controls>
+      </a-entity>
+
+      <a-entity
+        id="mainGauche"
+        meta-touch-controls="hand: left"
+        saisie-objet
+        tir-arme>
+      </a-entity>
+
+      <a-entity
+        id="mainDroite"
+        meta-touch-controls="hand: right"
+        saisie-objet
+        tir-arme>
+      </a-entity>
+
+      <a-entity
+        id="mainSouris"
+        saisie-objet="distanceSaisie: 1"
+        tir-arme
+        position="0 -0.2 -0.6">
+      </a-entity>
+
     </a-entity>
+
   </a-scene>
+
+
+  <style>
+    #boutonTestSouris {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 999;
+      padding: 10px 16px;
+      font-family: sans-serif;
+      font-size: 14px;
+      background: #212529;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    #instructionsTest {
+      display: none;
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 999;
+      padding: 10px 14px;
+      font-family: sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      background: rgba(33,37,41,0.85);
+      color: white;
+      border-radius: 6px;
+    }
+  </style>
+
+
+  <button id="boutonTestSouris">
+    TEST BONUS : activer les contrôles souris/clavier (PC)
+  </button>
+
+  <div id="instructionsTest">
+    <strong>Mode test PC activé</strong><br>
+    ZQSD : se déplacer<br>
+    Souris (clic + glisser) : regarder autour<br>
+    Clic gauche (maintenir) : attraper l'arme ou une balle proche<br>
+    Relâcher le clic gauche : lâcher / lancer l'objet à la main<br>
+    Clic droit : tirer (si l'arme est tenue)
+  </div>
+
+
+  <script>
+    document
+      .getElementById('boutonTestSouris')
+      .addEventListener('click', function () {
+
+        var mainSouris = document.getElementById('mainSouris');
+
+        document.addEventListener('contextmenu', function (evenement) {
+          evenement.preventDefault();
+        });
+
+        document.addEventListener('mousedown', function (evenement) {
+
+          if (evenement.button === 0) {
+            mainSouris.emit('gripdown');
+          }
+
+          if (evenement.button === 2) {
+            mainSouris.emit('triggerdown');
+          }
+
+        });
+
+        document.addEventListener('mouseup', function (evenement) {
+
+          if (evenement.button === 0) {
+            mainSouris.emit('gripup');
+          }
+
+        });
+
+        this.style.display = 'none';
+
+        document.getElementById('instructionsTest').style.display = 'block';
+
+      });
+  </script>
+
 </body>
 </html>
