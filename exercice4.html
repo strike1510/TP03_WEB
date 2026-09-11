@@ -88,19 +88,19 @@
 
 
     AFRAME.registerComponent('tir-arme', {
-      schema: {
+    schema: {
         vitesseProjectile: {default: 12},
         rayonProjectile: {default: 0.05},
         masseProjectile: {default: 0.2}
-      },
+    },
 
-      init: function () {
+    init: function () {
         this.el.addEventListener('triggerdown', () => {
-          this.tirer();
+        this.tirer();
         });
-      },
+    },
 
-      tirer: function () {
+    tirer: function () {
         let saisie = this.el.components['saisie-objet'];
 
         if (!saisie || !saisie.objet) return;
@@ -108,7 +108,6 @@
 
         let arme = saisie.objet;
         let bouche = arme.querySelector('.bouche');
-        let scene = this.el.sceneEl;
 
         let position = new THREE.Vector3();
         let quaternion = new THREE.Quaternion();
@@ -117,8 +116,8 @@
         bouche.object3D.getWorldQuaternion(quaternion);
 
         let direction = new THREE.Vector3(0, 0, -1)
-          .applyQuaternion(quaternion)
-          .normalize();
+        .applyQuaternion(quaternion)
+        .normalize();
 
         let projectile = document.createElement('a-sphere');
 
@@ -128,176 +127,101 @@
         projectile.setAttribute('color', '#FFD43B');
 
         projectile.setAttribute('position', {
-          x: position.x + direction.x * 0.2,
-          y: position.y + direction.y * 0.2,
-          z: position.z + direction.z * 0.2
+        x: position.x + direction.x * 0.2,
+        y: position.y + direction.y * 0.2,
+        z: position.z + direction.z * 0.2
         });
 
         projectile.setAttribute(
-          'dynamic-body',
-          'shape: sphere; mass: ' + this.data.masseProjectile
+        'dynamic-body',
+        'shape: sphere; mass: ' + this.data.masseProjectile
         );
 
         projectile.addEventListener('collide', e => {
-          if (projectile.touche) return;
-          if (!e.detail || !e.detail.body) return;
+        if (projectile.touche) return;
+        if (!e.detail || !e.detail.body) return;
 
-          let cible = e.detail.body.el;
+        let cible = e.detail.body.el;
 
-          if (!cible || !cible.classList || !cible.classList.contains('cible')) return;
+        if (cible && cible.classList && cible.classList.contains('cible')) {
+            projectile.touche = true;
 
-          projectile.touche = true;
-
-          let positionCible = cible.object3D.getWorldPosition(new THREE.Vector3());
-
-          setTimeout(() => {
-            jouerSonImpact(scene, positionCible);
-            creerParticules(scene, positionCible);
-
+            setTimeout(() => {
             if (cible.parentNode) cible.parentNode.removeChild(cible);
             if (projectile.parentNode) projectile.parentNode.removeChild(projectile);
-          }, 0);
+            }, 0);
+        }
         });
 
-        scene.appendChild(projectile);
+        this.el.sceneEl.appendChild(projectile);
 
         let puissance = this.data.vitesseProjectile;
-        let applique = false;
 
         function appliquerVitesse() {
-          if (applique || !projectile.body) return;
+        if (!projectile.body) return;
 
-          projectile.body.velocity.set(
+        projectile.body.velocity.set(
             direction.x * puissance,
             direction.y * puissance,
             direction.z * puissance
-          );
-
-          applique = true;
+        );
         }
 
         projectile.addEventListener('body-loaded', appliquerVitesse);
-        setTimeout(appliquerVitesse, 50);
 
-        setTimeout(() => {
-          if (!projectile.touche && projectile.parentNode) {
-            projectile.parentNode.removeChild(projectile);
-          }
-        }, 5000);
-      }
+        setTimeout(appliquerVitesse, 50);
+    }
     });
 
 
     AFRAME.registerComponent('generateur-cibles', {
-      schema: {
-        max: {default: 15}
-      },
-
-      init: function () {
+    init: function () {
         this.generer();
 
         this.timer = setInterval(() => {
-          this.generer();
+        this.generer();
         }, 5000);
-      },
+    },
 
-      remove: function () {
+    remove: function () {
         clearInterval(this.timer);
-      },
+    },
 
-      generer: function () {
-        if (this.el.querySelectorAll('.cible').length >= this.data.max) return;
-
+    generer: function () {
         let cible;
 
         if (Math.random() < 0.5) {
-          cible = document.createElement('a-box');
+        cible = document.createElement('a-box');
 
-          cible.setAttribute('width', '0.4');
-          cible.setAttribute('height', '0.4');
-          cible.setAttribute('depth', '0.4');
-          cible.setAttribute('color', '#FA5252');
+        cible.setAttribute('width', '0.4');
+        cible.setAttribute('height', '0.4');
+        cible.setAttribute('depth', '0.4');
+        cible.setAttribute('color', '#FA5252');
         } else {
-          cible = document.createElement('a-cone');
+        cible = document.createElement('a-cone');
 
-          cible.setAttribute('radius-bottom', '0.25');
-          cible.setAttribute('radius-top', '0');
-          cible.setAttribute('height', '0.5');
-          cible.setAttribute('color', '#BE4BDB');
+        cible.setAttribute('radius-bottom', '0.25');
+        cible.setAttribute('radius-top', '0');
+        cible.setAttribute('height', '0.5');
+        cible.setAttribute('color', '#BE4BDB');
         }
 
         cible.classList.add('cible');
 
         cible.setAttribute('position', {
-          x: (Math.random() - 0.5) * 8,
-          y: 1.5,
-          z: -2 - Math.random() * 8
+        x: (Math.random() - 0.5) * 8,
+        y: 1.5,
+        z: -2 - Math.random() * 8
         });
 
         cible.setAttribute('static-body', 'shape: box');
 
         this.el.appendChild(cible);
-      }
+    }
     });
-
-
-    function jouerSonImpact(scene, position) {
-      let son = document.createElement('a-entity');
-
-      son.setAttribute('position', position);
-      son.setAttribute(
-        'sound',
-        'src: #sonImpact; autoplay: true; positional: true; volume: 2'
-      );
-
-      scene.appendChild(son);
-
-      setTimeout(() => {
-        if (son.parentNode) son.parentNode.removeChild(son);
-      }, 2000);
-    }
-
-
-    function creerParticules(scene, position) {
-      for (let i = 0; i < 12; i++) {
-        let particule = document.createElement('a-sphere');
-
-        particule.setAttribute('radius', '0.04');
-        particule.setAttribute('color', '#FFA94D');
-        particule.setAttribute('material', 'transparent: true; opacity: 1');
-        particule.setAttribute('position', position);
-
-        let destination = {
-          x: position.x + (Math.random() - 0.5),
-          y: position.y + (Math.random() - 0.5),
-          z: position.z + (Math.random() - 0.5)
-        };
-
-        particule.setAttribute(
-          'animation__deplacement',
-          'property: position; to: ' +
-          destination.x + ' ' + destination.y + ' ' + destination.z +
-          '; dur: 600; easing: easeOutQuad'
-        );
-
-        particule.setAttribute(
-          'animation__disparition',
-          'property: material.opacity; from: 1; to: 0; dur: 600; easing: easeOutQuad'
-        );
-
-        scene.appendChild(particule);
-
-        (particuleADetruire => {
-          setTimeout(() => {
-            if (particuleADetruire.parentNode) {
-              particuleADetruire.parentNode.removeChild(particuleADetruire);
-            }
-          }, 650);
-        })(particule);
-      }
-    }
   </script>
 </head>
+
 
 <body>
 
@@ -308,7 +232,7 @@
     <a-assets>
       <audio
         id="sonImpact"
-        src="data:audio/wav;base64,UklGRmQLAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YUALAAAAAPYp/ksfYF9jW1YePTEeKAH97HzmSO94BQ4kDET/XaVrRWmEVnc2+Q5n5wjHhrO1rwS7pdFv7T0HgRi1HFsSSftF3Pi7d6G7klGTmKOtwAvlvgnmJys63T2IM8AeWAUP7hHfn9wd6MP/Ax+GP45aa2q1awpeHUQeI5sBEuaM1Y7Sldw68PwHex3iKi0sEiBHCCTpsMhVrYCccpmSpFu77dgc98oPOx4RIM8VrgLp64fXD8tMynLW4e12DHgszEdKWdRdAFUpQeMm/As19gPqm+l89JAH5R29Mdw9qz4EM3Uc6P7M3+zEMbOSrXq0ucX/3Nf01QfMEawQ9wSf8Vrbm8dduwi6tcTu2f/1wBO1LTc/cUX6P+AwLxwLB472pe488dD9jhH8J+k7mUjOSndB9S3FE8f3K99ZzgHIicwE2p/sg//iDQsUMxDfAr/uGtjhw5S2TbMSu57MpeSP/nMVKiUqKxEnsRqkCYD4yOv65sDrmfnxDbYkNDkiR4hLaEXxNTwgmwiw82blIuA/5AHwAADoD3QbWB8GGvsLrff84GHM8r2DuAu9c8rT3Rfz5QWLEsoWUBLBBl33Oehj3ffZbt9O7UABlRcNLMQ6CEHqPWsyRiFQDqL9tvKm7730ZQCND1Ee2Sg0LPsmohljBrzwtdwAzi/HKcn+0iDi9fKeAdoKrwzdBun6vesO3YLS5c6L0wjgRPLsBjEakSicL3Iu9CWHGJIJt/wG9Vn05/o6B4sWVCUbMDg0ZDAEJREUrQB27rvgzdmA2gTiFO5++9QGNQ3lDLYFDfmR6Z3af8/BypvNs9ct5xX5AQrRFlMdwBzcFcoKkv5q9A/vHvDA958EMhRII70uIzROMpEpqRteC+j7OvBk6iTrvPEp/IwH2xCCFfsTIwxB/77vo+Dw1PPOzc8214vjL/IbAIYKgQ9aDscHs/3R8gjqxeV550Xv8PsuCx8a6CVXLFYsJiZNG0MO3wHC+Lv0b/Yx/SsHzRFZGn8e4xxnFTAJcPrg6zXgh9ng2AXeiucc8w/+6QX5CKYGmf+P9fnqdOIw3nnfbeb18QAA9w1LGf8fFCG/HFgUDApiAKz5gvdw+tIBAAymFkof1SMKI8wcIRL8BND3Cu2M5kblCumS8NL5aAIoCI4JHAZv/hv0W+mJ4KHb09s+4ezqB/c+A0gNXBOXFCcRPArHAQf6CvU69A347P9SCiUVJB5sI9ojTR+sFrALiQBf99/x4PA29MD6qALQCUYOtA6tCsECZPiX7Xzk4t7d3ZHhJ+n/8gv9QQUQCqwKQgfkAFD5h/Jh7iDuK/L4+SYEzQ7mF7gdOx9LHLAV8Qz9A778r/iM+Cv8hALzCY4QlxTcFPsQeQmj/0j1Vuxv5pDk3eaa7Fn0SfybAuwFjAWnATf7zfM77SfptuhE7FTzrPyTBjcPChUdF0wVRRBhCVgC3Pw6+hb7Rv/YBU8N8RMqGOYYyhVMD5QGRP0S9XnvXe3f7lvzjfnX/58ErAZkBfQAQvq58v3rkOd45g/p5u7l9oX/JAdfDF4OAQ3iCDUDgf1G+az3Q/nf/aQEOAwKE60XJBkaF/QRugrdAuf7Jvdl9cP2rfoAAEsFIwlvCqkI/AM7/a310e4D6jTot+kt7qD0tPv2ASwGlgcYBj8CIP0W+Hv0V/Mp9cf5agDZB6kOjxOlFZwUyBATC8MEN/+U+4/6QfwhAC0FFwqZDbYO+QyICCAC7PpB9FzvF+2/7QXxD/ap+4kAnAM4BEkCT/5C+V/03PCo7zTxXPVu+00CuAiBDdkPdg+iDCoILwPo/ln8H/xO/mgCgQdsDAMQYhEbEFIMrgY5ACr6mPVJ84XzBfYJ+oD+RgJlBEsE5gGw/Yn4jvPb70fuOu+W8r33s/1UA5gHwwmSCUYHlwOG/yX8Xfq3+kH9iQG5Br4Ljg9aEb4Q1g01CcgDpP7A+s/4D/lB+7n+gwKcBSgHpgYKBMH/l/qQ9avxrO/172zyh/Zn+wgAgAMpBccElgI8/537sPhF99b3b/qm/rgDsgieDMIOwg6yDBYJvwSfAJf9QPzR/BH/YgLtBcUIJgqdCR8HDwMm/k35a/Uy8/rysfTc97b7W//3AfwCNgLe/4b8Afkr9r/0LfV991T7AACmBGsIpgoCC5EJxQZYAyAA5f0t/Sb+mwD+A4oHagrtC6oLlgkJBqgBR/2x+Yf3G/dc+N768v3NALcCLgMIAnv/C/x3+If15fP288P1/PgE/RQBawRxBtoGtQVoA5cABP5a/BX8W/36/28DCQcICsoL7wtrCowH5AMtACH9TPv3+hT8Qf7iAEQDwATlBI0D6gB4/d/52Pb69KP03/Vl+Kz7BP+/AVkDjQNqAkwAx/2E+yP6Dfpm+/79YQHtBPQH5AklCmsJOAdPBFMB6/6R/YX9uv7WAE8DggXaBvEGpwUnA+H/b/x1+X733vai94v5IPzE/t4A+AHYAYwAaf7x+8H5ZvhA+G/5yfvl/jACEAUBB7EHFgdqBR8DxwD1/hT+Xv7C//IBbgSjBgsISQhBBxcFMAIX/138gPrM+U36y/vb/fP/iQE4AssBUQAX/pX7V/ne94H3XfhP+vj82P9gAh4EyARUBPUCEQEs/8P9O/3C/Uv/iwERBFYG4QdeCLAH+gWSA/QAo/4O/Xn87fw7/gAAwwEKA3kD4gJTART/kfxI+q/4FfiV+BH6N/yS/qcADgKGAgcCvwAL/179K/zK+2X87v0jAJwC4QSCBjQH3AaWBa8DlQG9/4f+Mf7B/gsAuQFcA4YE5QRRBNcCtQBP/hf8dvq1+e35BPux/I7+LQAzAWcBwgBw/8L9Ifz2+pD6E/t2/Hv+xADmAn4ERgUlBTQEtwIPAaP/yf62/nD/zQB/AiIEVAXJBVwFGgQ5AhMAD/6J/MX72fuu/AT+gf/BAHYBbQGiADv/hP3c+6H6Gvpr+on7QP08/xsBhwI/Ay8DbAIyAdj/uP4g/j7+Fv+DADwC6AMtBcYFkwWbBBADQgGM/0H+m/2x/Wz+k//WAN4BYgI2AlgB6/8z/of8O/uR+qn6e/vZ/Hn+AgAqAbcBlwHcAL//i/6R/Rj9Sf0m/o3/PQHkAjME6QTpBDoEBgOUATUAM//B/vH+sf/LAPkB6wJhAzMDXwIEAWP/xv17/L37q/s9/Ev9k/7J/6cA/gC8APX/2P6s/br8Qfxm/Cv9cv4AAIwBzQKLA6oDLwNBAh0BCgBN/xD/Y/8zAFQBggJ3A/gD4QMwAwICjQAY/+f9Lv0K/XX9S/5R/0QA5wAPAa0A1P+v/n79hPz5+/77mPyr/QL/XAB4ASUCSALmASIBMgBX/8r+sv4f//7/JAFXAlcD7AP4A3cDgwJLAQ8ADP9w/lP+sv5s/0sAFgGUAaEBLgFOACn/9v30/FX8OPyh/Hj9kP6t/5UAHQEuAc0AGQBD/4L+Df4F/nj+Vf91AKMBpQJLA3UDIgNnAm8BcQCk/zH/Lf+U/0cAGgHVAUgCTwLhAQwB9v/Q/tP9K/32/Df92v22/pf/SQCoAJ0ALgB5/6b+7P14/Wz90f2Z/qL/ugCvAVQCjwJcAs0BCgFCAKf/Xf91/+z/pQB5ATUCrQLCAmoCsQG6ALP/yv4s/vD9G/6a/kn//P+DAL0AmAAbAF7/iP7J/Uv9LP12/Rv+/v7z/8oAXgGXAXAB/ABbALr/Qv8U/0H/xP+DAFoBHAKfAskCjwL9ATABUQCM/wX/1P76/mn/AACWAAMBJwH1AHEAsv/c/hn+kf1d/Yj9B/6+/of/NwCvANcArAA/AK//IP+6/pn+zf5Q/wsA3gCfASoCZgJIAtwBOgGHAOr/g/9m/5b/AwA=" preload="auto">
+        src="data:audio/wav;base64,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" preload="auto">
       </audio>
     </a-assets>
 
