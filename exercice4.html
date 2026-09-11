@@ -105,10 +105,10 @@
       tirer: function () {
         var saisie = this.el.components['saisie-objet'];
 
-        if (!saisie || !saisie.objetSaisi) return;
-        if (!saisie.objetSaisi.classList.contains('arme')) return;
+        if (!saisie || !saisie.objet) return;
+        if (!saisie.objet.classList.contains('arme')) return;
 
-        var arme = saisie.objetSaisi;
+        var arme = saisie.objet;
         var bouche = arme.querySelector('.bouche');
 
         var position = new THREE.Vector3();
@@ -123,8 +123,17 @@
 
         var projectile = document.createElement('a-sphere');
 
-        projectile.setAttribute('radius', this.data.rayonProjectile);
-        projectile.setAttribute('color', '#FFD43B');
+        projectile.classList.add('projectile');
+
+        projectile.setAttribute(
+          'radius',
+          this.data.rayonProjectile
+        );
+
+        projectile.setAttribute(
+          'color',
+          '#FFD43B'
+        );
 
         projectile.setAttribute('position', {
           x: position.x + direction.x * 0.2,
@@ -151,7 +160,10 @@
           );
         }
 
-        projectile.addEventListener('body-loaded', appliquerVitesse);
+        projectile.addEventListener(
+          'body-loaded',
+          appliquerVitesse
+        );
 
         setTimeout(function () {
           appliquerVitesse();
