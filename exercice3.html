@@ -90,55 +90,74 @@
 
 
     AFRAME.registerComponent('tir-arme', {
+      schema: {
+        vitesseProjectile: {default: 12},
+        rayonProjectile: {default: 0.05},
+        masseProjectile: {default: 0.2}
+      },
+
       init: function () {
-        this.el.addEventListener('triggerdown', () => {
+        var contexte = this;
 
-          let saisie = this.el.components['saisie-objet'];
-
-          if (!saisie || !saisie.objet) return;
-          if (!saisie.objet.classList.contains('arme')) return;
-
-          let arme = saisie.objet;
-          let bouche = arme.querySelector('.bouche');
-
-          let position = new THREE.Vector3();
-          let quaternion = new THREE.Quaternion();
-
-          bouche.object3D.getWorldPosition(position);
-          bouche.object3D.getWorldQuaternion(quaternion);
-
-          let direction = new THREE.Vector3(0, 0, -1)
-            .applyQuaternion(quaternion)
-            .normalize();
-
-          let balle = document.createElement('a-sphere');
-
-          balle.classList.add('projectile');
-
-          balle.setAttribute('radius', '0.05');
-          balle.setAttribute('color', '#FFD43B');
-
-          balle.setAttribute('position', {
-            x: position.x + direction.x * 0.2,
-            y: position.y + direction.y * 0.2,
-            z: position.z + direction.z * 0.2
-          });
-
-          balle.setAttribute(
-            'dynamic-body',
-            'shape: sphere; mass: 0.2'
-          );
-
-          this.el.sceneEl.appendChild(balle);
-
-          balle.addEventListener('body-loaded', () => {
-            balle.body.velocity.set(
-              direction.x * 16,
-              direction.y * 16,
-              direction.z * 16
-            );
-          });
+        this.el.addEventListener('triggerdown', function () {
+          contexte.tirer();
         });
+      },
+
+      tirer: function () {
+        var saisie = this.el.components['saisie-objet'];
+
+        if (!saisie || !saisie.objetSaisi) return;
+        if (!saisie.objetSaisi.classList.contains('arme')) return;
+
+        var arme = saisie.objetSaisi;
+        var bouche = arme.querySelector('.bouche');
+
+        var position = new THREE.Vector3();
+        var quaternion = new THREE.Quaternion();
+
+        bouche.object3D.getWorldPosition(position);
+        bouche.object3D.getWorldQuaternion(quaternion);
+
+        var direction = new THREE.Vector3(0, 0, -1)
+          .applyQuaternion(quaternion)
+          .normalize();
+
+        var projectile = document.createElement('a-sphere');
+
+        projectile.setAttribute('radius', this.data.rayonProjectile);
+        projectile.setAttribute('color', '#FFD43B');
+
+        projectile.setAttribute('position', {
+          x: position.x + direction.x * 0.2,
+          y: position.y + direction.y * 0.2,
+          z: position.z + direction.z * 0.2
+        });
+
+        projectile.setAttribute(
+          'dynamic-body',
+          'shape: sphere; mass: ' + this.data.masseProjectile
+        );
+
+        this.el.sceneEl.appendChild(projectile);
+
+        var puissance = this.data.vitesseProjectile;
+
+        function appliquerVitesse() {
+          if (!projectile.body) return;
+
+          projectile.body.velocity.set(
+            direction.x * puissance,
+            direction.y * puissance,
+            direction.z * puissance
+          );
+        }
+
+        projectile.addEventListener('body-loaded', appliquerVitesse);
+
+        setTimeout(function () {
+          appliquerVitesse();
+        }, 50);
       }
     });
 
