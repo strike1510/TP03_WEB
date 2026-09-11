@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -88,7 +87,6 @@
     });
 
 
-
     AFRAME.registerComponent('tir-arme', {
       schema: {
         vitesseProjectile: {default: 12},
@@ -107,10 +105,10 @@
       tirer: function () {
         var saisie = this.el.components['saisie-objet'];
 
-        if (!saisie || !saisie.objetSaisi) return;
-        if (!saisie.objetSaisi.classList.contains('arme')) return;
+        if (!saisie || !saisie.objet) return;
+        if (!saisie.objet.classList.contains('arme')) return;
 
-        var arme = saisie.objetSaisi;
+        var arme = saisie.objet;
         var bouche = arme.querySelector('.bouche');
 
         var position = new THREE.Vector3();
@@ -160,8 +158,6 @@
         }, 50);
       }
     });
-
-
   </script>
 </head>
 
@@ -206,7 +202,6 @@
 
     </a-entity>
 
-
     <a-plane
       rotation="-90 0 0"
       width="30"
@@ -215,9 +210,7 @@
       static-body>
     </a-plane>
 
-
     <a-sky color="#AECBEB"></a-sky>
-
 
     <a-entity
       id="rig"
