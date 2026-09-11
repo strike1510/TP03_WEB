@@ -1,4 +1,4 @@
-```html
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -88,6 +88,7 @@
     });
 
 
+
     AFRAME.registerComponent('tir-arme', {
       init: function () {
         this.el.addEventListener('triggerdown', () => {
@@ -132,14 +133,16 @@
 
           balle.addEventListener('body-loaded', () => {
             balle.body.velocity.set(
-              direction.x * 12,
-              direction.y * 12,
-              direction.z * 12
+              direction.x * 16,
+              direction.y * 16,
+              direction.z * 16
             );
           });
         });
       }
     });
+
+
   </script>
 </head>
 
@@ -228,4 +231,3 @@
 
 </body>
 </html>
-```
