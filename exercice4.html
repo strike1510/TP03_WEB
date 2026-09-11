@@ -112,19 +112,22 @@
           let balle = document.createElement('a-sphere');
 
           balle.classList.add('projectile');
+
           balle.setAttribute('radius', '0.05');
           balle.setAttribute('color', '#FFD43B');
 
           balle.setAttribute('position', {
-            x: position.x + direction.x * 0.1,
-            y: position.y + direction.y * 0.1,
-            z: position.z + direction.z * 0.1
+            x: position.x + direction.x * 0.2,
+            y: position.y + direction.y * 0.2,
+            z: position.z + direction.z * 0.2
           });
 
           balle.setAttribute(
             'dynamic-body',
             'shape: sphere; mass: 0.2'
           );
+
+          this.el.sceneEl.appendChild(balle);
 
           balle.addEventListener('body-loaded', () => {
             balle.body.velocity.set(
@@ -133,24 +136,6 @@
               direction.z * 16
             );
           });
-
-          balle.addEventListener('collide', evenement => {
-            let cible = evenement.detail.body.el;
-
-            if (!cible || !cible.classList.contains('cible')) return;
-
-            let positionImpact = cible.object3D.getWorldPosition(
-              new THREE.Vector3()
-            );
-
-            jouerSonImpact(this.el.sceneEl, positionImpact);
-            creerParticules(this.el.sceneEl, positionImpact);
-
-            cible.remove();
-            balle.remove();
-          });
-
-          this.el.sceneEl.appendChild(balle);
         });
       }
     });
