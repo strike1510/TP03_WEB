@@ -88,168 +88,152 @@
 
 
     AFRAME.registerComponent('tir-arme', {
-      schema: {
+    schema: {
         vitesseProjectile: {default: 12},
         rayonProjectile: {default: 0.05},
         masseProjectile: {default: 0.2}
-      },
+    },
 
-      init: function () {
-        var contexte = this;
-
-        this.el.addEventListener('triggerdown', function () {
-          contexte.tirer();
+    init: function () {
+        this.el.addEventListener('triggerdown', () => {
+        this.tirer();
         });
-      },
+    },
 
-      tirer: function () {
-        var saisie = this.el.components['saisie-objet'];
+    tirer: function () {
+        let saisie = this.el.components['saisie-objet'];
 
         if (!saisie || !saisie.objet) return;
         if (!saisie.objet.classList.contains('arme')) return;
 
-        var arme = saisie.objet;
-        var bouche = arme.querySelector('.bouche');
+        let arme = saisie.objet;
+        let bouche = arme.querySelector('.bouche');
 
-        var position = new THREE.Vector3();
-        var quaternion = new THREE.Quaternion();
+        let position = new THREE.Vector3();
+        let quaternion = new THREE.Quaternion();
 
         bouche.object3D.getWorldPosition(position);
         bouche.object3D.getWorldQuaternion(quaternion);
 
-        var direction = new THREE.Vector3(0, 0, -1)
-          .applyQuaternion(quaternion)
-          .normalize();
+        let direction = new THREE.Vector3(0, 0, -1)
+        .applyQuaternion(quaternion)
+        .normalize();
 
-        var projectile = document.createElement('a-sphere');
+        let projectile = document.createElement('a-sphere');
 
         projectile.classList.add('projectile');
 
-        projectile.setAttribute(
-          'radius',
-          this.data.rayonProjectile
-        );
-
-        projectile.setAttribute(
-          'color',
-          '#FFD43B'
-        );
+        projectile.setAttribute('radius', this.data.rayonProjectile);
+        projectile.setAttribute('color', '#FFD43B');
 
         projectile.setAttribute('position', {
-          x: position.x + direction.x * 0.2,
-          y: position.y + direction.y * 0.2,
-          z: position.z + direction.z * 0.2
+        x: position.x + direction.x * 0.2,
+        y: position.y + direction.y * 0.2,
+        z: position.z + direction.z * 0.2
         });
 
         projectile.setAttribute(
-          'dynamic-body',
-          'shape: sphere; mass: ' + this.data.masseProjectile
+        'dynamic-body',
+        'shape: sphere; mass: ' + this.data.masseProjectile
         );
+
+        projectile.addEventListener('collide', e => {
+        let cible = e.detail.body.el;
+
+        if (cible && cible.classList.contains('cible')) {
+            let positionCible = cible.object3D.getWorldPosition(new THREE.Vector3());
+
+            jouerSonImpact(this.el.sceneEl, positionCible);
+            creerParticules(this.el.sceneEl, positionCible);
+
+            cible.remove();
+            projectile.remove();
+        }
+        });
 
         this.el.sceneEl.appendChild(projectile);
 
-        var puissance = this.data.vitesseProjectile;
+        let puissance = this.data.vitesseProjectile;
 
         function appliquerVitesse() {
-          if (!projectile.body) return;
+        if (!projectile.body) return;
 
-          projectile.body.velocity.set(
+        projectile.body.velocity.set(
             direction.x * puissance,
             direction.y * puissance,
             direction.z * puissance
-          );
+        );
         }
 
-        projectile.addEventListener(
-          'body-loaded',
-          appliquerVitesse
-        );
+        projectile.addEventListener('body-loaded', appliquerVitesse);
 
-        setTimeout(function () {
-          appliquerVitesse();
-        }, 50);
-      }
+        setTimeout(appliquerVitesse, 50);
+    }
     });
 
 
     AFRAME.registerComponent('generateur-cibles', {
-      schema: {
-        delai: {default: 3000}
-      },
-
-      init: function () {
+    init: function () {
         this.generer();
 
         this.timer = setInterval(() => {
-          this.generer();
-        }, this.data.delai);
-      },
+        this.generer();
+        }, 5000);
+    },
 
-      remove: function () {
+    remove: function () {
         clearInterval(this.timer);
-      },
+    },
 
-      generer: function () {
+    generer: function () {
         let cible;
 
         if (Math.random() < 0.5) {
-          cible = document.createElement('a-box');
+        cible = document.createElement('a-box');
 
-          cible.setAttribute('width', '0.4');
-          cible.setAttribute('height', '0.4');
-          cible.setAttribute('depth', '0.4');
-          cible.setAttribute('color', '#FA5252');
+        cible.setAttribute('width', '0.4');
+        cible.setAttribute('height', '0.4');
+        cible.setAttribute('depth', '0.4');
+        cible.setAttribute('color', '#FA5252');
         } else {
-          cible = document.createElement('a-cone');
+        cible = document.createElement('a-cone');
 
-          cible.setAttribute('radius-bottom', '0.25');
-          cible.setAttribute('radius-top', '0');
-          cible.setAttribute('height', '0.5');
-          cible.setAttribute('color', '#BE4BDB');
+        cible.setAttribute('radius-bottom', '0.25');
+        cible.setAttribute('radius-top', '0');
+        cible.setAttribute('height', '0.5');
+        cible.setAttribute('color', '#BE4BDB');
         }
 
         cible.classList.add('cible');
 
         cible.setAttribute('position', {
-          x: (Math.random() - 0.5) * 8,
-          y: 1.5,
-          z: -2 - Math.random() * 8
+        x: (Math.random() - 0.5) * 8,
+        y: 1.5,
+        z: -2 - Math.random() * 8
         });
 
-        cible.setAttribute(
-          'static-body',
-          'shape: box'
-        );
-
-        cible.setAttribute(
-          'shadow',
-          'cast: true; receive: true'
-        );
+        cible.setAttribute('static-body', 'shape: box');
 
         this.el.appendChild(cible);
-      }
+    }
     });
 
 
     function jouerSonImpact(scene, position) {
-      let son = document.createElement('a-entity');
+    let son = document.createElement('a-entity');
 
-      son.setAttribute('position', position);
+    son.setAttribute('position', position);
 
-      son.setAttribute(
+    son.setAttribute(
         'sound',
-        'src: #sonImpact; positional: true; distanceModel: linear; refDistance: 1; maxDistance: 25; rolloffFactor: 1; volume: 1'
-      );
+        'src: #sonImpact; autoplay: true; positional: true; volume: 2'
+    );
 
-      scene.appendChild(son);
+    scene.appendChild(son);
 
-      son.addEventListener('loaded', () => {
-        son.components.sound.playSound();
-      });
-
-      setTimeout(() => {
+    setTimeout(() => {
         son.remove();
-      }, 1000);
+    }, 2000);
     }
 
 
