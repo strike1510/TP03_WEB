@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html>
 <head>
@@ -149,7 +150,6 @@
         }
 
         var objetRelache = this.objetSaisi;
-
         var vitesseLancer = this.vitesseMain.clone();
 
         this.el.sceneEl.object3D.attach(objetRelache.object3D);
@@ -213,7 +213,6 @@
         }
 
         var arme = saisie.objetSaisi;
-
         var bouche = arme.querySelector('.bouche');
 
         bouche.object3D.getWorldPosition(this.positionBouche);
@@ -347,8 +346,7 @@
         id="camera"
         camera
         position="0 1.6 0"
-        look-controls
-        wasd-controls>
+        look-controls>
       </a-entity>
 
       <a-entity
@@ -365,102 +363,10 @@
         tir-arme>
       </a-entity>
 
-      <a-entity
-        id="mainSouris"
-        saisie-objet="distanceSaisie: 1"
-        tir-arme
-        position="0 -0.2 -0.6">
-      </a-entity>
-
     </a-entity>
 
   </a-scene>
 
-
-  <style>
-    #boutonTestSouris {
-      position: fixed;
-      top: 16px;
-      left: 16px;
-      z-index: 999;
-      padding: 10px 16px;
-      font-family: sans-serif;
-      font-size: 14px;
-      background: #212529;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-
-    #instructionsTest {
-      display: none;
-      position: fixed;
-      top: 16px;
-      left: 16px;
-      z-index: 999;
-      padding: 10px 14px;
-      font-family: sans-serif;
-      font-size: 13px;
-      line-height: 1.5;
-      background: rgba(33,37,41,0.85);
-      color: white;
-      border-radius: 6px;
-    }
-  </style>
-
-
-  <button id="boutonTestSouris">
-    TEST BONUS : activer les contrôles souris/clavier (PC)
-  </button>
-
-  <div id="instructionsTest">
-    <strong>Mode test PC activé</strong><br>
-    ZQSD : se déplacer<br>
-    Souris (clic + glisser) : regarder autour<br>
-    Clic gauche (maintenir) : attraper l'arme ou une balle proche<br>
-    Relâcher le clic gauche : lâcher / lancer l'objet à la main<br>
-    Clic droit : tirer (si l'arme est tenue)
-  </div>
-
-
-  <script>
-    document
-      .getElementById('boutonTestSouris')
-      .addEventListener('click', function () {
-
-        var mainSouris = document.getElementById('mainSouris');
-
-        document.addEventListener('contextmenu', function (evenement) {
-          evenement.preventDefault();
-        });
-
-        document.addEventListener('mousedown', function (evenement) {
-
-          if (evenement.button === 0) {
-            mainSouris.emit('gripdown');
-          }
-
-          if (evenement.button === 2) {
-            mainSouris.emit('triggerdown');
-          }
-
-        });
-
-        document.addEventListener('mouseup', function (evenement) {
-
-          if (evenement.button === 0) {
-            mainSouris.emit('gripup');
-          }
-
-        });
-
-        this.style.display = 'none';
-
-        document.getElementById('instructionsTest').style.display = 'block';
-
-      });
-  </script>
-
 </body>
 </html>
+```
